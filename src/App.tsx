@@ -36,7 +36,7 @@ function Sidebar() {
       <div className="p-6 flex items-center gap-3">
         <ShieldAlert className="w-8 h-8 text-blue-500" />
         <div>
-          <h1 className="text-xl font-bold text-slate-100 tracking-tight">Trace<span className="text-blue-500">Intell</span></h1>
+          <h1 className="text-xl font-bold text-slate-100 tracking-tight">Trac<span className="text-blue-500">Phish</span></h1>
           <p className="text-xs text-slate-500 font-medium tracking-wider uppercase">Forensic Platform</p>
         </div>
       </div>

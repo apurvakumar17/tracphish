@@ -1,5 +1,5 @@
 {
-  "name": "TraceIntell",
+  "name": "TracPhish",
   "description": "AI-Powered Email Threat Detection & Forensic Intelligence Platform",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
