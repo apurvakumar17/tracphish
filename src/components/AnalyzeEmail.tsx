@@ -58,13 +58,20 @@ export default function AnalyzeEmail() {
         method: 'POST',
         body: formData,
       });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        const errorText = errJson?.error || `Server responded with status ${res.status}`;
+        throw new Error(errorText);
+      }
       const data = await res.json();
       if (data.id) {
         navigate(`/cases/${data.id}`);
+      } else {
+        throw new Error("No case ID returned from analysis.");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Analysis failed.");
+    } catch (err: any) {
+      console.error("Email analysis failed:", err);
+      alert(`Analysis failed: ${err?.message || "Please check server logs or environment variables."}`);
       setIsAnalyzing(false);
     }
   };
@@ -89,12 +96,19 @@ export default function AnalyzeEmail() {
     
     try {
       const res = await fetch(`/api/analyze/demo?type=${scenario}`, { method: 'POST' });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || `Server responded with status ${res.status}`);
+      }
       const data = await res.json();
       if (data.id) {
         navigate(`/cases/${data.id}`);
+      } else {
+        throw new Error("No demo case ID returned.");
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Demo analysis failed:", err);
+      alert(`Demo loading failed: ${err?.message || "Could not load demo scenario."}`);
       setIsAnalyzing(false);
     }
   };
