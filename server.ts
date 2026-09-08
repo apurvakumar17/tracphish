@@ -232,8 +232,10 @@ Text: ${parsed.text?.substring(0, 2000)}`;
       authResults
     };
     
-    cases.push(newCase);
     addToLedger(caseId, "ANALYSIS_COMPLETED", { threatScore, classification: aiAnalysis.classification });
+    const caseLedger = evidenceLedger.filter(l => l.caseId === caseId);
+    (newCase as any).ledger = caseLedger;
+    cases.push(newCase);
     
     res.json(newCase);
   } catch (error) {
@@ -432,6 +434,8 @@ app.post("/api/analyze/demo", async (req, res) => {
       addToLedger(caseId, "ANALYSIS_COMPLETED", { threatScore: 94, classification: "Business Email Compromise (BEC)" });
     }
 
+    const caseLedger = evidenceLedger.filter(l => l.caseId === caseId);
+    demoCase.ledger = caseLedger;
     cases.push(demoCase);
     res.json(demoCase);
 });
@@ -442,8 +446,12 @@ app.get("/api/cases", (req, res) => {
 
 app.get("/api/cases/:id", (req, res) => {
   const c = cases.find(c => c.id === req.params.id);
-  if (c) res.json(c);
-  else res.status(404).json({ error: "Case not found" });
+  if (c) {
+    const caseLedger = evidenceLedger.filter(l => l.caseId === req.params.id);
+    res.json({ ...c, ledger: caseLedger });
+  } else {
+    res.status(404).json({ error: "Case not found" });
+  }
 });
 
 app.get("/api/campaigns", (req, res) => {
@@ -456,13 +464,18 @@ app.get("/api/evidence/:caseId", (req, res) => {
 });
 
 app.post("/api/evidence/verify", (req, res) => {
-  // Simple verification: recompute hashes in order
+  const blocksToVerify = (req.body && Array.isArray(req.body.blocks) && req.body.blocks.length > 0)
+    ? req.body.blocks
+    : evidenceLedger;
+
   let isValid = true;
-  for (let i = 0; i < evidenceLedger.length; i++) {
-    const block = evidenceLedger[i];
-    const expectedPrevious = i > 0 ? evidenceLedger[i-1].currentHash : "0000000000000000000000000000000000000000000000000000000000000000";
+  for (let i = 0; i < blocksToVerify.length; i++) {
+    const block = blocksToVerify[i];
+    const expectedPrevious = i > 0 
+      ? blocksToVerify[i-1].currentHash 
+      : (block.previousHash || "0000000000000000000000000000000000000000000000000000000000000000");
     
-    if (block.previousHash !== expectedPrevious) {
+    if (block.previousHash && block.previousHash !== expectedPrevious) {
       isValid = false;
       break;
     }
@@ -475,13 +488,13 @@ app.post("/api/evidence/verify", (req, res) => {
       data: block.data 
     });
     const computedHash = generateHash(blockContent);
-    if (computedHash !== block.currentHash) {
+    if (block.currentHash && computedHash !== block.currentHash) {
       isValid = false;
       break;
     }
   }
   
-  res.json({ verified: isValid, blockCount: evidenceLedger.length });
+  res.json({ verified: isValid, blockCount: blocksToVerify.length });
 });
 
 const sendReport = (req: any, res: any) => {
