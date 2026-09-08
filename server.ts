@@ -457,7 +457,9 @@ app.post("/api/analyze/demo", async (req, res) => {
             { id: 'e2-3', source: '2', target: '3', label: 'FROM_INTERNAL', style: { stroke: '#475569' } },
           ]
         },
-        geoLocations: [],
+        geoLocations: [
+          { lat: 37.7749, lng: -122.4194, ip: "10.0.0.5", location: "San Francisco, USA (Corporate Relay)", isProbableSource: false }
+        ],
         authResults: { spf: "PASS", dkim: "PASS", dmarc: "PASS" }
       };
       addToLedger(caseId, "ANALYSIS_COMPLETED", { threatScore: 12, classification: "Legitimate" });

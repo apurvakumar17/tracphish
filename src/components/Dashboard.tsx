@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Case } from '../types';
-import { getStoredCases, mergeServerCases } from '../utils/storage';
+import { getStoredCases, mergeServerCases, getEffectiveGeoLocations } from '../utils/storage';
 
 // Fix for default marker icon in react-leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -126,19 +126,46 @@ export default function Dashboard() {
         </div>
 
         <div className="space-y-4">
-           <h3 className="text-lg font-semibold text-slate-200">Global Infrastructure Map</h3>
+           <div className="flex items-center justify-between">
+             <h3 className="text-lg font-semibold text-slate-200">Global Infrastructure Map</h3>
+             <span className="text-xs text-slate-500 font-mono">
+               {cases.reduce((acc, c) => acc + getEffectiveGeoLocations(c).length, 0)} nodes active
+             </span>
+           </div>
            <div className="bg-slate-900 border border-slate-800 rounded-xl p-0 h-[400px] flex items-center justify-center relative overflow-hidden z-0">
               <MapContainer center={[20, 0]} zoom={1.5} className="dark-tiles" style={{ height: '100%', width: '100%', background: '#020617' }}>
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 />
-                {cases.flatMap(c => c.geoLocations || []).map((geo, idx) => (
-                  <Marker key={idx} position={[geo.lat, geo.lng]}>
+                {cases.flatMap(c => {
+                  const geos = getEffectiveGeoLocations(c);
+                  return geos.map(g => ({
+                    ...g,
+                    caseId: c.id,
+                    threatClassification: c.threatClassification,
+                    threatScore: c.threatScore,
+                    severity: c.severity,
+                  }));
+                }).map((geo, idx) => (
+                  <Marker key={`${geo.caseId}-${idx}`} position={[geo.lat, geo.lng]}>
                     <Popup className="bg-slate-900 border-slate-800 text-slate-200">
-                      <strong>{geo.isProbableSource ? "Probable Source" : "Observed Infrastructure"}</strong><br/>
-                      IP: {geo.ip}<br/>
-                      Location: {geo.location}
+                      <div className="p-1 space-y-1 text-slate-200">
+                        <div className="font-bold text-sm text-blue-400 font-mono">{geo.caseId}</div>
+                        <div className="text-xs font-semibold text-slate-300">
+                          {geo.isProbableSource ? "⚠️ Probable Threat Origin" : "🏢 Observed Infrastructure"}
+                        </div>
+                        <div className="text-xs text-slate-400 space-y-0.5">
+                          <div><strong>IP:</strong> <span className="font-mono text-slate-300">{geo.ip}</span></div>
+                          <div><strong>Location:</strong> {geo.location}</div>
+                          <div><strong>Threat:</strong> <span className={geo.threatScore > 70 ? 'text-red-400' : 'text-green-400'}>{geo.threatClassification} ({geo.threatScore}/100)</span></div>
+                        </div>
+                        <div className="mt-2 pt-1 border-t border-slate-700">
+                          <Link to={`/cases/${geo.caseId}`} className="text-blue-400 hover:text-blue-300 text-xs font-semibold underline">
+                            Inspect Case &rarr;
+                          </Link>
+                        </div>
+                      </div>
                     </Popup>
                   </Marker>
                 ))}

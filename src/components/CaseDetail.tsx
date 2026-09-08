@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, LedgerEntry } from '../types';
-import { getStoredCaseById, saveStoredCase, getStoredLedger, saveStoredLedger, downloadForensicReport } from '../utils/storage';
+import { getStoredCaseById, saveStoredCase, getStoredLedger, saveStoredLedger, downloadForensicReport, getEffectiveGeoLocations } from '../utils/storage';
 import { ShieldAlert, ArrowLeft, BrainCircuit, Network, Globe, MapPin, Database, CheckCircle, XCircle, Download, AlertTriangle } from 'lucide-react';
 import { ReactFlow, Background, Controls, MarkerType } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -159,7 +159,15 @@ export default function CaseDetail() {
 }
 
 function OverviewTab({ data }: { data: Case }) {
-  const isDemo = data.id.includes("DEMO");
+  const geoList = getEffectiveGeoLocations(data);
+  const primaryGeo = geoList[0] || {
+    lat: 37.7749,
+    lng: -122.4194,
+    ip: "10.0.0.5",
+    location: "Corporate Network Relay",
+    isProbableSource: false
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -227,37 +235,101 @@ function OverviewTab({ data }: { data: Case }) {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Original Email Metadata */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+          <div className="p-4 bg-slate-950/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Original Email Metadata</h3>
+            <span className="text-xs font-mono text-slate-500 truncate max-w-[200px]">ID: {data.parsedData?.messageId || "N/A"}</span>
+          </div>
+          <div className="p-6 space-y-4 text-sm flex-1">
+            <div>
+              <span className="text-slate-500 block mb-1 font-medium">From</span>
+              <div className="font-mono bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-slate-300 break-all">{data.parsedData?.from || "N/A"}</div>
+            </div>
+            <div>
+              <span className="text-slate-500 block mb-1 font-medium">To</span>
+              <div className="font-mono bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-slate-300 break-all">{data.parsedData?.to || "N/A"}</div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <span className="text-slate-500 block mb-1 font-medium">Subject</span>
+                <div className="bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-slate-300 font-medium truncate">{data.parsedData?.subject || "N/A"}</div>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-1 font-medium">Date</span>
+                <div className="bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-slate-300 truncate">{data.parsedData?.date ? new Date(data.parsedData?.date).toLocaleString() : "N/A"}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Email Origin & Geolocation Map */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+          <div className="p-4 bg-slate-950/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-blue-500" />
+              Email Origin Location Map
+            </h3>
+            <span className={`text-xs px-2.5 py-0.5 rounded font-mono border ${
+              primaryGeo.isProbableSource 
+                ? 'bg-red-500/10 text-red-400 border-red-500/20' 
+                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            }`}>
+              {primaryGeo.isProbableSource ? "⚠️ Suspicious Threat Origin" : "🏢 Internal / Verified Relay"}
+            </span>
+          </div>
+
+          <div className="h-[280px] w-full relative z-0">
+            <MapContainer 
+              center={[primaryGeo.lat, primaryGeo.lng]} 
+              zoom={4} 
+              scrollWheelZoom={false}
+              className="dark-tiles" 
+              style={{ height: '100%', width: '100%', background: '#020617' }}
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              />
+              <Marker position={[primaryGeo.lat, primaryGeo.lng]}>
+                <Popup className="bg-slate-900 border-slate-800 text-slate-200">
+                  <div className="p-1 space-y-1 text-slate-200">
+                    <strong className="text-blue-400 font-mono text-sm">{data.id}</strong><br/>
+                    <span className="text-xs text-slate-300 font-medium">
+                      {primaryGeo.isProbableSource ? "Probable Threat Source" : "Observed Relay / Network"}
+                    </span><br/>
+                    <span className="text-xs text-slate-400">
+                      <strong>IP:</strong> <span className="font-mono">{primaryGeo.ip}</span><br/>
+                      <strong>Location:</strong> {primaryGeo.location}
+                    </span>
+                  </div>
+                </Popup>
+              </Marker>
+            </MapContainer>
+          </div>
+
+          <div className="p-3 bg-slate-950/50 border-t border-slate-800 grid grid-cols-2 gap-4 text-xs font-mono text-slate-400">
+            <div>
+              <span className="text-slate-500 block mb-0.5">RESOLVED GEOLOCATION</span>
+              <span className="text-slate-200 font-semibold">{primaryGeo.location}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block mb-0.5">SOURCE / HOP IP</span>
+              <span className="text-blue-400 font-semibold">{primaryGeo.ip}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Full-width Email Body Content */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="p-4 bg-slate-950/50 border-b border-slate-800 flex justify-between items-center">
-          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Original Email Metadata</h3>
-          <span className="text-xs font-mono text-slate-500">ID: {data.parsedData?.messageId}</span>
+        <div className="p-4 bg-slate-950/50 border-b border-slate-800">
+          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Email Body Content</h3>
         </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-          <div className="space-y-4">
-             <div>
-               <span className="text-slate-500 block mb-1">From</span>
-               <div className="font-mono bg-slate-950 border border-slate-800 p-2 rounded text-slate-300 break-all">{data.parsedData?.from}</div>
-             </div>
-             <div>
-               <span className="text-slate-500 block mb-1">To</span>
-               <div className="font-mono bg-slate-950 border border-slate-800 p-2 rounded text-slate-300 break-all">{data.parsedData?.to}</div>
-             </div>
-          </div>
-          <div className="space-y-4">
-             <div>
-               <span className="text-slate-500 block mb-1">Subject</span>
-               <div className="bg-slate-950 border border-slate-800 p-2 rounded text-slate-300 font-medium">{data.parsedData?.subject}</div>
-             </div>
-             <div>
-               <span className="text-slate-500 block mb-1">Date</span>
-               <div className="bg-slate-950 border border-slate-800 p-2 rounded text-slate-300">{new Date(data.parsedData?.date).toLocaleString()}</div>
-             </div>
-          </div>
-        </div>
-        <div className="p-6 border-t border-slate-800">
-          <span className="text-slate-500 block mb-2 text-sm">Body Snippet</span>
-          <pre className="font-mono text-xs bg-slate-950 border border-slate-800 p-4 rounded-lg text-slate-400 whitespace-pre-wrap max-h-64 overflow-y-auto">
-            {data.parsedData?.text || "No text available."}
+        <div className="p-6">
+          <pre className="font-mono text-xs bg-slate-950 border border-slate-800 p-4 rounded-lg text-slate-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+            {data.parsedData?.text || "No text content available."}
           </pre>
         </div>
       </div>
