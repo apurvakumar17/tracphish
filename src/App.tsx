@@ -5,12 +5,11 @@
 
 import React from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Mail, FolderSearch, Settings, ShieldAlert, FileText, Database, Shield, Fingerprint } from "lucide-react";
+import { LayoutDashboard, Mail, FolderSearch, Settings, ShieldAlert, FileText, Shield, Fingerprint } from "lucide-react";
 import Dashboard from "./components/Dashboard";
 import AnalyzeEmail from "./components/AnalyzeEmail";
 import CaseList from "./components/CaseList";
 import CaseDetail from "./components/CaseDetail";
-import Campaigns from "./components/Campaigns";
 import Reports from "./components/Reports";
 import Evidence from "./components/Evidence";
 import { clsx, type ClassValue } from "clsx";
@@ -26,7 +25,6 @@ function Sidebar() {
     { name: "Overview", path: "/", icon: LayoutDashboard },
     { name: "Analyze", path: "/analyze", icon: Mail },
     { name: "Cases", path: "/cases", icon: FolderSearch },
-    { name: "Campaigns", path: "/campaigns", icon: Database },
     { name: "Reports", path: "/reports", icon: FileText },
     { name: "Evidence", path: "/evidence", icon: Fingerprint },
   ];
@@ -104,7 +102,6 @@ export default function App() {
           <Route path="/analyze" element={<AnalyzeEmail />} />
           <Route path="/cases" element={<CaseList />} />
           <Route path="/cases/:id" element={<CaseDetail />} />
-          <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/evidence" element={<Evidence />} />
           <Route path="*" element={<div className="text-slate-500 p-8 flex items-center justify-center h-full text-xl">404 Not Found</div>} />

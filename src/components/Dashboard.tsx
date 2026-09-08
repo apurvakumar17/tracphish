@@ -37,7 +37,7 @@ export default function Dashboard() {
   const stats = [
     { name: 'Emails Analyzed', value: cases.length.toString(), icon: Mail, color: 'text-blue-500' },
     { name: 'Threats Detected', value: cases.filter(c => c.threatScore > 50).length.toString(), icon: ShieldAlert, color: 'text-red-500' },
-    { name: 'Active Campaigns', value: Array.from(new Set(cases.map(c => c.relatedCampaign).filter(Boolean))).length.toString(), icon: Activity, color: 'text-orange-500' },
+    { name: 'Safe / Low Risk', value: cases.filter(c => c.threatScore <= 50).length.toString(), icon: Activity, color: 'text-green-500' },
     { name: 'Critical Cases', value: cases.filter(c => c.severity === 'Critical').length.toString(), icon: Users, color: 'text-purple-500' },
   ];
 
