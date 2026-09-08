@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Download, Clock } from 'lucide-react';
 import { Case } from '../types';
-import { getStoredCases, mergeServerCases } from '../utils/storage';
+import { getStoredCases, mergeServerCases, downloadForensicReport } from '../utils/storage';
 
 export default function Reports() {
   const [cases, setCases] = useState<Case[]>(() => getStoredCases());
@@ -69,13 +69,12 @@ export default function Reports() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-3">
-                     <a
-                        href={`/api/report/${c.id}`}
-                        download={`Forensic_Report_${c.id}.txt`}
-                        className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium transition-colors"
+                     <button
+                        onClick={() => downloadForensicReport(c)}
+                        className="text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium transition-colors cursor-pointer bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg border border-blue-500/20"
                      >
                         <Download className="w-4 h-4" /> Download
-                     </a>
+                     </button>
                   </div>
                 </td>
               </tr>

@@ -484,7 +484,7 @@ app.post("/api/evidence/verify", (req, res) => {
   res.json({ verified: isValid, blockCount: evidenceLedger.length });
 });
 
-app.post("/api/report/:caseId", (req, res) => {
+const sendReport = (req: any, res: any) => {
   const c = cases.find(c => c.id === req.params.caseId);
   if (!c) return res.status(404).json({ error: "Case not found" });
   
@@ -554,7 +554,10 @@ signals, not definitive identification of an attacker.
   res.setHeader('Content-disposition', `attachment; filename=Forensic_Report_${c.id}.txt`);
   res.setHeader('Content-type', 'text/plain');
   res.send(report);
-});
+};
+
+app.get("/api/report/:caseId", sendReport);
+app.post("/api/report/:caseId", sendReport);
 
 
 // Vite Setup

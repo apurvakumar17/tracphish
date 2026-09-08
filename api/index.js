@@ -430,7 +430,7 @@ app.post("/api/evidence/verify", (req, res) => {
   }
   res.json({ verified: isValid, blockCount: evidenceLedger.length });
 });
-app.post("/api/report/:caseId", (req, res) => {
+var sendReport = (req, res) => {
   const c = cases.find((c2) => c2.id === req.params.caseId);
   if (!c) return res.status(404).json({ error: "Case not found" });
   const caseLedger = evidenceLedger.filter((l) => l.caseId === req.params.caseId);
@@ -498,7 +498,9 @@ signals, not definitive identification of an attacker.
   res.setHeader("Content-disposition", `attachment; filename=Forensic_Report_${c.id}.txt`);
   res.setHeader("Content-type", "text/plain");
   res.send(report);
-});
+};
+app.get("/api/report/:caseId", sendReport);
+app.post("/api/report/:caseId", sendReport);
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");

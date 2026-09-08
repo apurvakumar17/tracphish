@@ -84,3 +84,77 @@ export function getAllStoredLedgers(): { caseId: string; blocks: any[] }[] {
     return [];
   }
 }
+
+export function downloadForensicReport(caseData: Case, customLedger?: any[]) {
+  const caseLedger = customLedger || getStoredLedger(caseData.id);
+  const report = `=================================================================
+             FORENSIC INVESTIGATION REPORT
+=================================================================
+CASE ID      : ${caseData.id}
+CREATED AT   : ${caseData.createdAt}
+ANALYST      : ${caseData.analyst || "Auto-Triage"}
+=================================================================
+
+1. EXECUTIVE SUMMARY
+-----------------------------------------------------------------
+THREAT CLASS : ${caseData.threatClassification}
+THREAT SCORE : ${caseData.threatScore} / 100
+CONFIDENCE   : ${caseData.attributionConfidence}%
+SEVERITY     : ${caseData.severity}
+
+SUMMARY:
+${caseData.aiAnalysis?.summary || "No AI summary available."}
+
+2. EMAIL METADATA
+-----------------------------------------------------------------
+FROM         : ${caseData.parsedData?.from || "N/A"}
+TO           : ${caseData.parsedData?.to || "N/A"}
+SUBJECT      : ${caseData.parsedData?.subject || "N/A"}
+DATE         : ${caseData.parsedData?.date || "N/A"}
+MESSAGE-ID   : ${caseData.parsedData?.messageId || "N/A"}
+
+3. AI FINDINGS & INDICATORS
+-----------------------------------------------------------------
+Social Engineering : ${caseData.aiAnalysis?.social_engineering_indicators?.join(', ') || "None"}
+Impersonation      : ${caseData.aiAnalysis?.impersonation_indicators?.join(', ') || "None"}
+Suspicious Phrases : ${caseData.aiAnalysis?.suspicious_phrases?.join(', ') || "None"}
+
+4. HEADER FORENSICS & ROUTING
+-----------------------------------------------------------------
+AUTHENTICATION:
+SPF: ${caseData.authResults?.spf || "N/A"} | DKIM: ${caseData.authResults?.dkim || "N/A"} | DMARC: ${caseData.authResults?.dmarc || "N/A"}
+
+ROUTING HOPS:
+${(caseData.hops || []).map((h: any, i: number) => `[Hop ${i+1}] ${h.ip} - ${h.host} (${h.location}) - Suspicious: ${h.isSuspicious}`).join('\n') || "None recorded"}
+
+5. GEOLOCATION & INFRASTRUCTURE
+-----------------------------------------------------------------
+${(caseData.geoLocations || []).map((g: any) => `IP: ${g.ip} -> Location: ${g.location} [Probable Source: ${g.isProbableSource}]`).join('\n') || "None recorded"}
+
+6. EVIDENCE & CHAIN OF CUSTODY
+-----------------------------------------------------------------
+Total Ledger Blocks: ${caseLedger.length}
+${caseLedger.map((l: any) => `[Block ${String(l.sequence).padStart(3, '0')}] ${l.timestamp} - ${l.eventType} \nHash: ${l.currentHash}`).join('\n\n') || "None recorded"}
+
+7. RECOMMENDED ACTIONS
+-----------------------------------------------------------------
+${caseData.aiAnalysis?.recommended_actions?.map((r: string) => `- ${r}`).join('\n') || "None"}
+
+=================================================================
+LEGAL DISCLAIMER: 
+IP geolocation and attribution are probabilistic intelligence 
+signals, not definitive identification of an attacker.
+=================================================================
+`;
+
+  const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Forensic_Report_${caseData.id}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, LedgerEntry } from '../types';
-import { getStoredCaseById, saveStoredCase, getStoredLedger, saveStoredLedger } from '../utils/storage';
+import { getStoredCaseById, saveStoredCase, getStoredLedger, saveStoredLedger, downloadForensicReport } from '../utils/storage';
 import { ShieldAlert, ArrowLeft, BrainCircuit, Network, Globe, MapPin, Database, CheckCircle, XCircle, Download, AlertTriangle } from 'lucide-react';
 import { ReactFlow, Background, Controls, MarkerType } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -110,14 +110,13 @@ export default function CaseDetail() {
           </div>
         </div>
         <div className="ml-auto flex gap-3">
-          <a
-            href={`/api/report/${caseData.id}`}
-            download={`Forensic_Report_${caseData.id}.txt`}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          <button
+            onClick={() => downloadForensicReport(caseData, ledger)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 cursor-pointer shadow-lg shadow-blue-500/20"
           >
             <Download className="w-4 h-4" />
             Download Report
-          </a>
+          </button>
         </div>
       </div>
 
