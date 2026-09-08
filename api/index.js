@@ -63,30 +63,21 @@ function addToLedger(caseId, eventType, data) {
   evidenceLedger.push(block);
   return block;
 }
-app.post("/api/analyze/email", upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: "No file uploaded" });
-      return;
-    }
-    const emlContent = req.file.buffer.toString("utf-8");
-    const parsed = await simpleParser(req.file.buffer);
-    const caseId = `CASE-${Math.floor(Math.random() * 1e6)}`;
-    const originalHash = generateHash(emlContent);
-    addToLedger(caseId, "EVIDENCE_UPLOADED", { filename: req.file.originalname, hash: originalHash });
-    const toText = Array.isArray(parsed.to) ? parsed.to.map((t) => t.text).join(", ") : parsed.to?.text;
-    let aiAnalysis = null;
+var GEMINI_CANDIDATE_MODELS = [
+  process.env.GEMINI_MODEL,
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b"
+].filter(Boolean);
+async function runGeminiAnalysis(prompt) {
+  const ai = getGenAI();
+  let lastError = null;
+  for (const model of GEMINI_CANDIDATE_MODELS) {
     try {
-      const ai = getGenAI();
-      const prompt = `Analyze this email for threats (BEC, phishing, malware). Return JSON.
-Email headers and text:
-From: ${parsed.from?.text}
-To: ${toText}
-Subject: ${parsed.subject}
-Date: ${parsed.date}
-Text: ${parsed.text?.substring(0, 2e3)}`;
+      console.log(`Querying Gemini model: ${model}...`);
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -106,20 +97,108 @@ Text: ${parsed.text?.substring(0, 2e3)}`;
           }
         }
       });
-      aiAnalysis = JSON.parse(response.text || "{}");
+      const parsed = JSON.parse(response.text || "{}");
+      if (parsed && (parsed.classification || parsed.threat_score !== void 0)) {
+        console.log(`Gemini analysis succeeded using model: ${model}`);
+        return parsed;
+      }
+    } catch (err) {
+      console.warn(`Gemini model ${model} temporarily unavailable (${err?.message?.substring(0, 100) || err}), trying fallback...`);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("All Gemini candidate models unavailable");
+}
+function runHeuristicAnalysis(parsed, authHeader) {
+  const subject = (parsed.subject || "").toLowerCase();
+  const text = (parsed.text || "").toLowerCase();
+  const fromText = (parsed.from?.text || "").toLowerCase();
+  const authString = authHeader ? authHeader.toString().toLowerCase() : "";
+  const spfFail = authString.includes("spf=fail") || authString.includes("spf=softfail");
+  const dkimFail = authString.includes("dkim=fail");
+  const dmarcFail = authString.includes("dmarc=fail");
+  const urgentWords = ["urgent", "immediately", "immediate", "suspended", "suspend", "action required", "verify", "verification", "24 hours", "unauthorized", "unusual activity", "locked", "expire"];
+  const financialWords = ["invoice", "payment", "wire", "bank", "routing", "transfer", "remittance", "payroll", "swift", "funds", "gift card", "crypto", "bitcoin", "direct deposit"];
+  const impersonationWords = ["security team", "it support", "ceo", "cfo", "helpdesk", "administrator", "microsoft", "paypal", "google", "apple", "bank of america", "wells fargo", "chase"];
+  const foundUrgent = urgentWords.filter((w) => subject.includes(w) || text.includes(w));
+  const foundFinancial = financialWords.filter((w) => subject.includes(w) || text.includes(w));
+  const foundImpersonation = impersonationWords.filter((w) => fromText.includes(w) || subject.includes(w));
+  let score = 30;
+  const reasons = [];
+  const socialEng = [];
+  const impersonation = [];
+  if (spfFail || dkimFail || dmarcFail) {
+    score += 35;
+    reasons.push("Email authentication failed (SPF/DKIM/DMARC flags detected in mail headers).");
+    impersonation.push("Sender domain failed cryptographic authentication checks");
+  }
+  if (foundUrgent.length > 0) {
+    score += 20;
+    socialEng.push(`Urgency indicators: "${foundUrgent.slice(0, 3).join('", "')}"`);
+    reasons.push("Coercive time-pressure lure detected in communication.");
+  }
+  if (foundFinancial.length > 0) {
+    score += 20;
+    socialEng.push(`Financial transaction lure: "${foundFinancial.slice(0, 3).join('", "')}"`);
+    reasons.push("Communication solicits payment or banking modifications.");
+  }
+  if (foundImpersonation.length > 0) {
+    score += 15;
+    impersonation.push(`Targeted entity mimicry: "${foundImpersonation.slice(0, 2).join('", "')}"`);
+    reasons.push("Sender mimics a corporate or administrative authority.");
+  }
+  score = Math.min(Math.max(score, 12), 94);
+  let classification = "Suspicious / Phishing";
+  if (score >= 85 && foundFinancial.length > 0) {
+    classification = "Business Email Compromise (BEC)";
+  } else if (score >= 70) {
+    classification = "Credential Phishing";
+  } else if (score <= 35) {
+    classification = "Low Risk / Likely Legitimate";
+  }
+  const suspiciousPhrases = [...foundUrgent, ...foundFinancial].slice(0, 5);
+  return {
+    classification,
+    threat_score: score,
+    confidence: 0.88,
+    summary: `Automated forensic triage conducted. Suspected threat (${classification}) identified based on ${reasons[0] || "header forensics and heuristic behavioral triggers"}.`,
+    social_engineering_indicators: socialEng.length > 0 ? socialEng : ["Heuristic inspection flagged anomalous sender routing"],
+    impersonation_indicators: impersonation.length > 0 ? impersonation : ["External sender verification required"],
+    suspicious_phrases: suspiciousPhrases.length > 0 ? suspiciousPhrases : ["Action Required"],
+    recommended_actions: [
+      "Quarantine email and block sender relay",
+      "Verify instructions via trusted out-of-band communication",
+      "Inspect mail server SPF/DKIM policy enforcement"
+    ],
+    reasoning: reasons.length > 0 ? reasons : ["Heuristic threat detection rules matched known email compromise patterns."]
+  };
+}
+app.post("/api/analyze/email", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "No file uploaded" });
+      return;
+    }
+    const emlContent = req.file.buffer.toString("utf-8");
+    const parsed = await simpleParser(req.file.buffer);
+    const caseId = `CASE-${Math.floor(Math.random() * 1e6)}`;
+    const originalHash = generateHash(emlContent);
+    addToLedger(caseId, "EVIDENCE_UPLOADED", { filename: req.file.originalname, hash: originalHash });
+    const toText = Array.isArray(parsed.to) ? parsed.to.map((t) => t.text).join(", ") : parsed.to?.text;
+    const authHeader = parsed.headers && typeof parsed.headers.get === "function" ? parsed.headers.get("authentication-results") : null;
+    let aiAnalysis = null;
+    try {
+      const prompt = `Analyze this email for threats (BEC, phishing, malware). Return JSON.
+Email headers and text:
+From: ${parsed.from?.text}
+To: ${toText}
+Subject: ${parsed.subject}
+Date: ${parsed.date}
+Text: ${parsed.text?.substring(0, 2e3)}`;
+      aiAnalysis = await runGeminiAnalysis(prompt);
     } catch (e) {
-      console.warn("AI Analysis fallback active:", e?.message || e);
-      aiAnalysis = {
-        classification: "Suspicious / Phishing",
-        threat_score: 82,
-        confidence: 0.85,
-        summary: `Automated forensic triage conducted. Suspected email threat identified based on header forensics and indicators (${e?.message ? "AI note: " + e.message : "Heuristic mode"}).`,
-        social_engineering_indicators: ["Urgency / Action Required", "Impersonation Risk"],
-        impersonation_indicators: ["External sender domain verification flag"],
-        suspicious_phrases: ["Action Required", "Verification Link"],
-        recommended_actions: ["Quarantine email", "Block sender domain", "Review authentication headers"],
-        reasoning: ["Header routing shows anomalous relay sequence.", "Domain authentication verification required."]
-      };
+      console.warn("Gemini API overloaded or unavailable. Seamlessly activating heuristic forensic engine:", e?.message || e);
+      aiAnalysis = runHeuristicAnalysis(parsed, authHeader);
     }
     const threatScore = aiAnalysis.threat_score || 50;
     const receivedHeaders = parsed.headers && typeof parsed.headers.get === "function" ? parsed.headers.get("received") : null;
@@ -165,7 +244,6 @@ Text: ${parsed.text?.substring(0, 2e3)}`;
     const geoLocations = [
       { lat: 40.7128, lng: -74.006, ip: primaryIp, location: "New York, USA", isProbableSource: threatScore > 70 }
     ];
-    const authHeader = parsed.headers && typeof parsed.headers.get === "function" ? parsed.headers.get("authentication-results") : null;
     const authResults = {
       spf: authHeader?.toString().includes("spf=pass") ? "PASS" : "FAIL",
       dkim: authHeader?.toString().includes("dkim=pass") ? "PASS" : "FAIL",
