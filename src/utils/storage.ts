@@ -1,4 +1,5 @@
 import { Case, GeoLocation } from '../types';
+import { generateForensicPdf } from './pdfGenerator';
 
 const CASES_STORAGE_KEY = 'tracphish_cases';
 const LEDGER_STORAGE_KEY = 'tracphish_ledger';
@@ -243,6 +244,17 @@ export function getAllStoredLedgers(): { caseId: string; blocks: any[] }[] {
 }
 
 export function downloadForensicReport(caseData: Case, customLedger?: any[]) {
+  const caseLedger = customLedger || getStoredLedger(caseData.id);
+  const geoPoints = getEffectiveGeoLocations(caseData);
+  try {
+    generateForensicPdf(caseData, caseLedger, geoPoints);
+  } catch (err) {
+    console.error("PDF generation failed, falling back to text report:", err);
+    downloadForensicTextReport(caseData, caseLedger);
+  }
+}
+
+export function downloadForensicTextReport(caseData: Case, customLedger?: any[]) {
   const caseLedger = customLedger || getStoredLedger(caseData.id);
   const report = `=================================================================
              FORENSIC INVESTIGATION REPORT

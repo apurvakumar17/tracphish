@@ -73,7 +73,7 @@ export default function Reports() {
                         onClick={() => downloadForensicReport(c)}
                         className="text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium transition-colors cursor-pointer bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg border border-blue-500/20"
                      >
-                        <Download className="w-4 h-4" /> Download
+                        <Download className="w-4 h-4" /> Download PDF
                      </button>
                   </div>
                 </td>

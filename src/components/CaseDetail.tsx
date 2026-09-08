@@ -115,7 +115,7 @@ export default function CaseDetail() {
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 cursor-pointer shadow-lg shadow-blue-500/20"
           >
             <Download className="w-4 h-4" />
-            Download Report
+            Download PDF Report
           </button>
         </div>
       </div>
