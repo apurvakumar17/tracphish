@@ -583,4 +583,10 @@ if (!process.env.VERCEL) {
   startServer();
 }
 
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export default app;
