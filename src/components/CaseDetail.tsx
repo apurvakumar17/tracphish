@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, LedgerEntry } from '../types';
+import { getStoredCaseById, saveStoredCase, getStoredLedger, saveStoredLedger } from '../utils/storage';
 import { ShieldAlert, ArrowLeft, BrainCircuit, Network, Globe, MapPin, Database, CheckCircle, XCircle, Download, AlertTriangle } from 'lucide-react';
 import { ReactFlow, Background, Controls, MarkerType } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -25,8 +26,43 @@ export default function CaseDetail() {
   const [activeTab, setActiveTab] = useState<'overview' | 'forensics' | 'graph' | 'custody'>('overview');
 
   useEffect(() => {
-    fetch(`/api/cases/${id}`).then(r => r.json()).then(setCaseData).catch(console.error);
-    fetch(`/api/evidence/${id}`).then(r => r.json()).then(setLedger).catch(console.error);
+    // Pre-populate immediately from localStorage
+    const localCase = id ? getStoredCaseById(id) : null;
+    if (localCase) setCaseData(localCase);
+
+    const localLedger = id ? getStoredLedger(id) : [];
+    if (localLedger.length > 0) setLedger(localLedger);
+
+    // Fetch and sync from server
+    fetch(`/api/cases/${id}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Case not found on server');
+        return r.json();
+      })
+      .then(data => {
+        if (data && data.id) {
+          setCaseData(data);
+          saveStoredCase(data);
+        }
+      })
+      .catch(err => {
+        console.warn("Case sync failed, using localStorage fallback:", err);
+      });
+
+    fetch(`/api/evidence/${id}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Evidence not found on server');
+        return r.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setLedger(data);
+          if (id) saveStoredLedger(id, data);
+        }
+      })
+      .catch(err => {
+        console.warn("Evidence sync failed, using localStorage fallback:", err);
+      });
   }, [id]);
 
   const verifyEvidence = async () => {
@@ -317,10 +353,10 @@ function GraphTab({ data }: { data: Case }) {
              </div>
            </div>
            <div className="flex-1 rounded-lg border border-slate-800 overflow-hidden z-0 relative">
-             <MapContainer center={[geoLocations[0].lat, geoLocations[0].lng]} zoom={2} style={{ height: '100%', width: '100%', background: '#020617' }}>
+             <MapContainer center={[geoLocations[0].lat, geoLocations[0].lng]} zoom={2} className="dark-tiles" style={{ height: '100%', width: '100%', background: '#020617' }}>
                <TileLayer
-                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                />
                {geoLocations.map((geo, idx) => (
                  <Marker key={idx} position={[geo.lat, geo.lng]}>

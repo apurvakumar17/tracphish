@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Case } from '../types';
+import { getStoredCases, mergeServerCases } from '../utils/storage';
 
 // Fix for default marker icon in react-leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -18,13 +19,19 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 export default function Dashboard() {
-  const [cases, setCases] = useState<Case[]>([]);
+  const [cases, setCases] = useState<Case[]>(() => getStoredCases());
 
   useEffect(() => {
     fetch('/api/cases')
       .then(res => res.json())
-      .then(data => setCases(data))
-      .catch(console.error);
+      .then(data => {
+        const merged = mergeServerCases(data);
+        setCases(merged);
+      })
+      .catch(err => {
+        console.error("Failed to fetch cases from server, using local storage:", err);
+        setCases(getStoredCases());
+      });
   }, []);
 
   const stats = [
@@ -121,10 +128,10 @@ export default function Dashboard() {
         <div className="space-y-4">
            <h3 className="text-lg font-semibold text-slate-200">Global Infrastructure Map</h3>
            <div className="bg-slate-900 border border-slate-800 rounded-xl p-0 h-[400px] flex items-center justify-center relative overflow-hidden z-0">
-              <MapContainer center={[20, 0]} zoom={1.5} style={{ height: '100%', width: '100%', background: '#020617' }}>
+              <MapContainer center={[20, 0]} zoom={1.5} className="dark-tiles" style={{ height: '100%', width: '100%', background: '#020617' }}>
                 <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                  attribution='&copy; OpenStreetMap &copy; CARTO'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 />
                 {cases.flatMap(c => c.geoLocations || []).map((geo, idx) => (
                   <Marker key={idx} position={[geo.lat, geo.lng]}>

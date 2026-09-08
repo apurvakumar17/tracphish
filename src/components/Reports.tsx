@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Download, Clock } from 'lucide-react';
 import { Case } from '../types';
+import { getStoredCases, mergeServerCases } from '../utils/storage';
 
 export default function Reports() {
-  const [cases, setCases] = useState<Case[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [cases, setCases] = useState<Case[]>(() => getStoredCases());
+  const [loading, setLoading] = useState(() => getStoredCases().length === 0);
 
   useEffect(() => {
     fetch('/api/cases')
       .then(res => res.json())
       .then(data => {
-        setCases(data);
+        const merged = mergeServerCases(data);
+        setCases(merged);
         setLoading(false);
       })
       .catch(err => {
-        console.error(err);
+        console.warn("Failed to fetch reports from server, using local storage:", err);
+        setCases(getStoredCases());
         setLoading(false);
       });
   }, []);

@@ -1,16 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Case } from '../types';
+import { getStoredCases, mergeServerCases } from '../utils/storage';
 import { Search, Filter } from 'lucide-react';
 
 export default function CaseList() {
-  const [cases, setCases] = useState<Case[]>([]);
+  const [cases, setCases] = useState<Case[]>(() => getStoredCases());
 
   useEffect(() => {
     fetch('/api/cases')
       .then(res => res.json())
-      .then(data => setCases(data))
-      .catch(console.error);
+      .then(data => {
+        const merged = mergeServerCases(data);
+        setCases(merged);
+      })
+      .catch(err => {
+        console.error("Failed to fetch cases from server, using local storage:", err);
+        setCases(getStoredCases());
+      });
   }, []);
 
   return (

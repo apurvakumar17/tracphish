@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+/* Cyber-Dark theme for OpenStreetMap Leaflet tiles without watermarks */
+.dark-tiles .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
+}
+
+.dark-tiles.leaflet-container {
+  background: #020617 !important;
+}

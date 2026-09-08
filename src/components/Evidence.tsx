@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Database, ShieldCheck, AlertCircle } from 'lucide-react';
+import { getAllStoredLedgers, getStoredCases, getStoredLedger, saveStoredLedger } from '../utils/storage';
 
 export default function Evidence() {
   const [ledgers, setLedgers] = useState<{caseId: string, blocks: any[]}[]>([]);
@@ -7,21 +8,40 @@ export default function Evidence() {
   const [verification, setVerification] = useState<{ verified: boolean, blockCount: number } | null>(null);
 
   useEffect(() => {
-    // Fetch all cases, then fetch their ledgers
+    const localLedgers = getAllStoredLedgers();
+    if (localLedgers.length > 0) {
+      setLedgers(localLedgers);
+      setLoading(false);
+    }
+
     fetch('/api/cases')
       .then(res => res.json())
       .then(async (cases) => {
-         const allLedgers = await Promise.all(cases.map(async (c: any) => {
-            const res = await fetch(`/api/evidence/${c.id}`);
-            const blocks = await res.json();
-            return { caseId: c.id, blocks };
+         const list = Array.isArray(cases) && cases.length > 0 ? cases : getStoredCases();
+         const allLedgers = await Promise.all(list.map(async (c: any) => {
+            try {
+              const res = await fetch(`/api/evidence/${c.id}`);
+              if (res.ok) {
+                const blocks = await res.json();
+                if (Array.isArray(blocks) && blocks.length > 0) {
+                  saveStoredLedger(c.id, blocks);
+                  return { caseId: c.id, blocks };
+                }
+              }
+            } catch (e) {
+              console.warn("Evidence fetch failed for", c.id, e);
+            }
+            return { caseId: c.id, blocks: getStoredLedger(c.id) };
          }));
          setLedgers(allLedgers);
          setLoading(false);
       })
       .catch(err => {
-        console.error(err);
-        setLoading(false);
+         console.warn("Using stored ledgers due to server fetch failure:", err);
+         const storedCases = getStoredCases();
+         const fallbacks = storedCases.map(c => ({ caseId: c.id, blocks: getStoredLedger(c.id) }));
+         setLedgers(fallbacks.length > 0 ? fallbacks : getAllStoredLedgers());
+         setLoading(false);
       });
   }, []);
 

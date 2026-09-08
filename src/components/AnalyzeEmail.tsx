@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, File, AlertTriangle, Loader2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../App';
+import { saveStoredCase, saveStoredLedger } from '../utils/storage';
 
 export default function AnalyzeEmail() {
   const [file, setFile] = useState<File | null>(null);
@@ -65,6 +66,11 @@ export default function AnalyzeEmail() {
       }
       const data = await res.json();
       if (data.id) {
+        saveStoredCase(data);
+        saveStoredLedger(data.id, [
+          { sequence: 1, timestamp: new Date().toISOString(), caseId: data.id, eventType: "EVIDENCE_UPLOADED", data: { filename: file.name } },
+          { sequence: 2, timestamp: new Date().toISOString(), caseId: data.id, eventType: "ANALYSIS_COMPLETED", data: { threatScore: data.threatScore, classification: data.threatClassification } }
+        ]);
         navigate(`/cases/${data.id}`);
       } else {
         throw new Error("No case ID returned from analysis.");
@@ -102,6 +108,11 @@ export default function AnalyzeEmail() {
       }
       const data = await res.json();
       if (data.id) {
+        saveStoredCase(data);
+        saveStoredLedger(data.id, [
+          { sequence: 1, timestamp: new Date().toISOString(), caseId: data.id, eventType: "DEMO_SCENARIO_LOADED", data: { scenario } },
+          { sequence: 2, timestamp: new Date().toISOString(), caseId: data.id, eventType: "ANALYSIS_COMPLETED", data: { threatScore: data.threatScore, classification: data.threatClassification } }
+        ]);
         navigate(`/cases/${data.id}`);
       } else {
         throw new Error("No demo case ID returned.");
